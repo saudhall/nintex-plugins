@@ -6,7 +6,7 @@
  * - Newest comment is shown on top
  * - Only the first line of each comment shows; "see more" expands it
  * - Comments are shaded in alternating grey / white
- * - Read-only / display form: shows comments only (no input box)
+ * - Read-only / display form (incl. DispForm.aspx): shows comments only (no input box)
  * - Stored value (ntx-value-change) is a JSON string:
  *   [{"id":"abc1","text":"Comment","ts":"2026-10-06T04:32:00.000Z"}]
  *
@@ -19,7 +19,7 @@ class RepetitiveComments extends HTMLElement {
       fallbackDisableSubmit: false,
       version: '1',
       pluginAuthor: 'saudhall',
-      pluginVersion: '1.0.0',
+      pluginVersion: '1.0.1',
       description: 'Add multiple time-stamped comments, newest first',
       iconUrl: 'multiline-text',
       groupName: 'Custom Plugins',
@@ -36,7 +36,7 @@ class RepetitiveComments extends HTMLElement {
       },
       designer: {
         canvasRestrictions: {
-          minSize: 10,
+          minSize: 12,
           isFullRow: true,
         },
       },
@@ -105,6 +105,20 @@ class RepetitiveComments extends HTMLElement {
   attributeChangedCallback(name, _old, val) {
     if (name === 'value') this.value = val;
     if (name === 'readonly') this.readOnly = val !== null && val !== 'false';
+  }
+
+
+  // True when the form is opened as a SharePoint display form (DispForm.aspx)
+  static _isDisplayForm() {
+    const test = (w) => {
+      try { return /DispForm\.aspx/i.test(w.location.href); } catch (e) { return false; }
+    };
+    return test(window) || (window.parent !== window && test(window.parent));
+  }
+
+  // Read-only if Nintex says so OR the item is opened in display mode
+  _isReadOnly() {
+    return this._readOnly || RepetitiveComments._isDisplayForm();
   }
 
   // ---------- Helpers ----------
@@ -270,6 +284,7 @@ class RepetitiveComments extends HTMLElement {
   }
 
   _add() {
+    if (this._isReadOnly()) return;
     const text = this._textarea.value.trim();
     if (!text) {
       this._error.textContent = 'Please type a comment first.';
@@ -348,7 +363,7 @@ class RepetitiveComments extends HTMLElement {
     this._prevBtn.disabled = this._page <= 0;
     this._nextBtn.disabled = this._page >= totalPages - 1;
     this._pageLabel.textContent = 'Page ' + (this._page + 1) + ' of ' + totalPages;
-    this._addBox.style.display = this._readOnly ? 'none' : '';
+    this._addBox.style.display = this._isReadOnly() ? 'none' : '';
 
     requestAnimationFrame(() => this._measure());
   }
