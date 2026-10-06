@@ -34,6 +34,7 @@ class CustomLinks extends HTMLElement {
       },
       designer: {
         canvasRestrictions: {
+          minSize: 12,
           isFullRow: true,
         },
       },
