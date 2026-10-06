@@ -36,7 +36,7 @@ class RepetitiveComments extends HTMLElement {
       },
       designer: {
         canvasRestrictions: {
-          minSize: 12,
+          minSize: 10,
           isFullRow: true,
         },
       },
