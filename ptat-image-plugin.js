@@ -154,13 +154,38 @@ class PtatImage extends LitElement {
   // True when the form/item is opened in Display (read-only) mode
   get _isReadOnly() {
     if (this.readOnly === true || this.readOnly === 'true') return true;
-    if (this.hasAttribute('readonly') || this.hasAttribute('readOnly')) return true;
+    if (this.hasAttribute('readonly') || this.hasAttribute('readOnly') || this.hasAttribute('disabled')) return true;
 
-    const url = (window.location.href || '').toLowerCase();
-    if (url.includes('dispform') || url.includes('controlmode=display') || url.includes('mode=display')) {
-      return true;
+    // Check parent elements Nintex wraps around the control
+    let el = this;
+    while (el) {
+      if (el.nodeType === 1) {
+        const cls = (el.className && el.className.toString().toLowerCase()) || '';
+        if (el.hasAttribute('readonly') || el.hasAttribute('disabled') ||
+            cls.includes('readonly') || cls.includes('read-only') || cls.includes('display-mode')) {
+          return true;
+        }
+      }
+      el = el.parentNode || el.host || null;
     }
-    return false;
+
+    // Check URL (this page, the parent page if in an iframe, and the referrer)
+    const urls = [];
+    try { urls.push(window.location.href); } catch (e) {}
+    try { urls.push(window.top.location.href); } catch (e) {}
+    try { urls.push(window.parent.location.href); } catch (e) {}
+    try { urls.push(document.referrer); } catch (e) {}
+
+    const isDisplayUrl = urls.some(u => {
+      const l = (u || '').toLowerCase();
+      return l.includes('dispform') ||
+             l.includes('controlmode=display') ||
+             l.includes('mode=display') ||
+             l.includes('formmode=display') ||
+             l.includes('display=true');
+    });
+
+    return isDisplayUrl;
   }
 
   _onKeyDown(e) {
