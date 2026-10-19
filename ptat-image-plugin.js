@@ -20,7 +20,7 @@ class PtatImage extends LitElement {
   static properties = {
     label: {},
     description: {},
-    readOnly: { type: Boolean },
+    readOnly: { type: Boolean, attribute: 'readonly' },
     required: { type: Boolean },
     value: {},
 
@@ -151,6 +151,18 @@ class PtatImage extends LitElement {
     }
   }
 
+  // True when the form/item is opened in Display (read-only) mode
+  get _isReadOnly() {
+    if (this.readOnly === true || this.readOnly === 'true') return true;
+    if (this.hasAttribute('readonly') || this.hasAttribute('readOnly')) return true;
+
+    const url = (window.location.href || '').toLowerCase();
+    if (url.includes('dispform') || url.includes('controlmode=display') || url.includes('mode=display')) {
+      return true;
+    }
+    return false;
+  }
+
   _onKeyDown(e) {
     if (e.key === 'Escape' && this._fullScreen) {
       this._fullScreen = false;
@@ -158,7 +170,7 @@ class PtatImage extends LitElement {
   }
 
   _pickFile() {
-    if (this.readOnly) return;
+    if (this._isReadOnly) return;
     this.shadowRoot.querySelector('#file').click();
   }
 
@@ -192,11 +204,11 @@ class PtatImage extends LitElement {
       ${!this._imageDataUrl ? html`
 
         <div
-          class="upload-zone ${this.readOnly ? 'disabled' : ''}"
+          class="upload-zone ${this._isReadOnly ? 'disabled' : ''}"
           @click="${this._pickFile}"
         >
-          <h3>🖼 Upload Photo</h3>
-          <div>Click to upload a photo</div>
+          <h3>🖼 ${this._isReadOnly ? 'No Photo' : 'Upload Photo'}</h3>
+          <div>${this._isReadOnly ? 'No photo has been uploaded' : 'Click to upload a photo'}</div>
           <input
             hidden
             id="file"
@@ -218,7 +230,7 @@ class PtatImage extends LitElement {
             🔍 View in Full Screen
           </button>
 
-          ${!this.readOnly ? html`
+          ${!this._isReadOnly ? html`
             <button class="btn btn-danger" @click="${this._remove}">
               🗑 Remove
             </button>
