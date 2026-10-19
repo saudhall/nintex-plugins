@@ -1,11 +1,12 @@
 /**
- * Nintex Form Plugin: PTAT-Image
+ * Nintex Form Plugin: PTAT-Image (v1.2)
  *
  * Simple image upload control:
  *  - Click to upload a photo
  *  - Photo shows as a small preview on the form
  *  - "View in Full Screen" button opens it full screen
  *  - Tap the image (or press Esc) to return to the small size
+ *  - Upload / Remove are hidden in the Display form
  *
  * REGISTRATION DETAILS:
  *   Element name: ptat-image
@@ -25,7 +26,8 @@ class PtatImage extends LitElement {
     value: {},
 
     _imageDataUrl: { state: true },
-    _fullScreen: { state: true }
+    _fullScreen: { state: true },
+    _uploadedThisSession: { state: true }
   };
 
   static styles = css`
@@ -44,8 +46,8 @@ class PtatImage extends LitElement {
     }
 
     .upload-zone.disabled {
-      cursor: not-allowed;
-      opacity: .6;
+      cursor: default;
+      opacity: .7;
     }
 
     .preview-img {
@@ -104,9 +106,9 @@ class PtatImage extends LitElement {
   constructor() {
     super();
     this.label = 'PTAT-Image';
-    this.readOnly = false;
     this._imageDataUrl = null;
     this._fullScreen = false;
+    this._uploadedThisSession = false;
     this._onKeyDown = this._onKeyDown.bind(this);
   }
 
@@ -115,7 +117,7 @@ class PtatImage extends LitElement {
       controlName: 'PTAT-Image',
       description: 'Simple image upload with a View in Full Screen button. Tap the image to return to normal size.',
       groupName: 'Custom',
-      version: '1',
+      version: '1.2',
       iconUrl: 'image',
       standardProperties: {
         fieldLabel: true,
@@ -145,47 +147,65 @@ class PtatImage extends LitElement {
   }
 
   willUpdate(changed) {
-    // Load a saved value when the form opens
     if (changed.has('value') && this.value && this.value !== this._imageDataUrl) {
       this._imageDataUrl = this.value;
     }
   }
 
-  // True when the form/item is opened in Display (read-only) mode
+  // All page addresses we can see (this page, parent page, referrer)
+  _urls() {
+    const urls = [];
+    try { urls.push(window.location.href); } catch (e) {}
+    try { urls.push(window.top.location.href); } catch (e) {}
+    try { urls.push(window.parent.location.href); } catch (e) {}
+    try { urls.push(document.referrer); } catch (e) {}
+    return urls.map(u => (u || '').toLowerCase());
+  }
+
+  // True when the item is opened in Display (read-only) mode
   get _isReadOnly() {
     if (this.readOnly === true || this.readOnly === 'true') return true;
     if (this.hasAttribute('readonly') || this.hasAttribute('readOnly') || this.hasAttribute('disabled')) return true;
 
-    // Check parent elements Nintex wraps around the control
     let el = this;
     while (el) {
       if (el.nodeType === 1) {
         const cls = (el.className && el.className.toString().toLowerCase()) || '';
         if (el.hasAttribute('readonly') || el.hasAttribute('disabled') ||
-            cls.includes('readonly') || cls.includes('read-only') || cls.includes('display-mode')) {
+            cls.includes('readonly') || cls.includes('read-only') ||
+            cls.includes('display-mode') || cls.includes('displaymode')) {
           return true;
         }
       }
       el = el.parentNode || el.host || null;
     }
 
-    // Check URL (this page, the parent page if in an iframe, and the referrer)
-    const urls = [];
-    try { urls.push(window.location.href); } catch (e) {}
-    try { urls.push(window.top.location.href); } catch (e) {}
-    try { urls.push(window.parent.location.href); } catch (e) {}
-    try { urls.push(document.referrer); } catch (e) {}
+    return this._urls().some(l =>
+      l.includes('dispform') ||
+      l.includes('controlmode=display') ||
+      l.includes('mode=display') ||
+      l.includes('formmode=display') ||
+      l.includes('display=true')
+    );
+  }
 
-    const isDisplayUrl = urls.some(u => {
-      const l = (u || '').toLowerCase();
-      return l.includes('dispform') ||
-             l.includes('controlmode=display') ||
-             l.includes('mode=display') ||
-             l.includes('formmode=display') ||
-             l.includes('display=true');
-    });
+  // True only when we are confident the form is New or Edit
+  get _isEditContext() {
+    if (this.readOnly === false) return true;
+    return this._urls().some(l =>
+      l.includes('newform') ||
+      l.includes('editform') ||
+      l.includes('controlmode=edit') ||
+      l.includes('controlmode=new') ||
+      l.includes('mode=edit') ||
+      l.includes('mode=new')
+    );
+  }
 
-    return isDisplayUrl;
+  // Upload / Remove allowed only on New or Edit forms, never on Display
+  get _canEdit() {
+    if (this._isReadOnly) return false;
+    return this._uploadedThisSession || this._isEditContext;
   }
 
   _onKeyDown(e) {
@@ -206,12 +226,14 @@ class PtatImage extends LitElement {
     const reader = new FileReader();
     reader.onload = (ev) => {
       this._imageDataUrl = ev.target.result;
+      this._uploadedThisSession = true;
       this._emit(this._imageDataUrl);
     };
     reader.readAsDataURL(file);
   }
 
   _remove() {
+    if (!this._canEdit) return;
     this._imageDataUrl = null;
     this._emit('');
   }
@@ -225,15 +247,18 @@ class PtatImage extends LitElement {
   }
 
   render() {
+    const readOnly = this._isReadOnly;
+    const canEdit = this._canEdit;
+
     return html`
       ${!this._imageDataUrl ? html`
 
         <div
-          class="upload-zone ${this._isReadOnly ? 'disabled' : ''}"
+          class="upload-zone ${readOnly ? 'disabled' : ''}"
           @click="${this._pickFile}"
         >
-          <h3>🖼 ${this._isReadOnly ? 'No Photo' : 'Upload Photo'}</h3>
-          <div>${this._isReadOnly ? 'No photo has been uploaded' : 'Click to upload a photo'}</div>
+          <h3>🖼 ${readOnly ? 'No Photo' : 'Upload Photo'}</h3>
+          <div>${readOnly ? 'No photo has been uploaded' : 'Click to upload a photo'}</div>
           <input
             hidden
             id="file"
@@ -255,7 +280,7 @@ class PtatImage extends LitElement {
             🔍 View in Full Screen
           </button>
 
-          ${!this._isReadOnly ? html`
+          ${canEdit ? html`
             <button class="btn btn-danger" @click="${this._remove}">
               🗑 Remove
             </button>
